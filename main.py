@@ -15,17 +15,18 @@ class CurrencyExchange:
     BASE_URL = "https://api.privatbank.ua/p24api/exchange_rates"
 
     @staticmethod
-    async def get_exchange_rate(date: str):
+    async def get_exchange_rate(date: str, currencies: list):
         async with aiohttp.ClientSession() as session:
             async with session.get(f"{CurrencyExchange.BASE_URL}?json&date={date}") as response:
                 data = await response.json()
                 exchange_rate = {
                     currency['currency']: currency['saleRateNB'] for currency in data['exchangeRate']
+                    if currency['currency'] in currencies
                 }
                 return exchange_rate
 
     @staticmethod
-    async def get_exchange_rate_for_last_n_days(n_days):
+    async def get_exchange_rate_for_last_n_days(n_days, currencies: list):
         today = datetime.today().date()
         rates = {}
         async with aiohttp.ClientSession() as session:
@@ -36,6 +37,7 @@ class CurrencyExchange:
                     data = await response.json()
                     exchange_rate = {
                         currency['currency']: currency['saleRateNB'] for currency in data['exchangeRate']
+                        if currency['currency'] in currencies
                     }
                     rates[date.strftime("%Y-%m-%d")] = exchange_rate
         return rates
@@ -77,7 +79,8 @@ class Server:
             await self.unregister(ws)
 
     async def exchange(self, ws: WebSocketServerProtocol, days: int):
-        exchange_rates = await CurrencyExchange.get_exchange_rate_for_last_n_days(days)
+        currencies = ["USD", "EUR"]
+        exchange_rates = await CurrencyExchange.get_exchange_rate_for_last_n_days(days, currencies)
         for date, rates in exchange_rates.items():
             formatted_rate = "\n".join([f"{currency}: {rate}" for currency, rate in rates.items()])
             await ws.send(f"Exchange rates for {date}:\n{formatted_rate}")
